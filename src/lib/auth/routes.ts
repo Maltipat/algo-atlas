@@ -28,20 +28,20 @@ const PUBLIC_PAGES: RegExp[] = [
   /^\/topics\/[^/]+$/,
   /^\/patterns$/,
   /^\/patterns\/[^/]+$/,
-  /^\/companies$/,
-  /^\/companies\/[^/]+$/,
   /^\/roadmap$/,
   /^\/courses$/,
-  /^\/interview$/,
   /^\/search$/,
 ];
+
+// Deliberately absent, so default-deny covers them: the whole Interview
+// experience (/interview, /interview/plans/*, /mock-interview) and Companies
+// (/companies, /companies/[slug]), which are interview preparation too.
 
 /** Content lookups behind the public pages. Read-only, no personal data. */
 const PUBLIC_APIS: RegExp[] = [
   /^\/api\/problems(\/|$)/,
   /^\/api\/topics(\/|$)/,
   /^\/api\/patterns(\/|$)/,
-  /^\/api\/companies(\/|$)/,
   /^\/api\/search(\/|$)/,
   /^\/api\/daily-challenge(\/|$)/,
   /^\/api\/auth\/session$/,

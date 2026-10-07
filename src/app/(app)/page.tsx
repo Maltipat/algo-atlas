@@ -87,7 +87,6 @@ const TOUR: { href: string; title: string; description: string }[] = [
   { href: "/problems", title: "264 problems", description: "Filter by topic, difficulty, company or pattern. Statements are open to read." },
   { href: "/patterns", title: "17 interview patterns", description: "When each applies, how to recognise it, and a template to start from." },
   { href: "/topics", title: "Lessons", description: "Explanations, worked examples, complexity and common mistakes." },
-  { href: "/companies", title: "Company prep", description: "Topic mix, process and mock questions for eight companies." },
   { href: "/courses", title: "Courses", description: "Guided tracks that sequence the roadmap for you." },
 ];
 
@@ -130,8 +129,8 @@ function SignedOutDashboard() {
           <div>
             <CardTitle>What needs an account</CardTitle>
             <CardDescription>
-              Running and submitting code, bookmarks, revision, recommendations, achievements and analytics all save against your progress,
-              so they are behind login. Everything above is open.
+              Running and submitting code, bookmarks, revision, recommendations, achievements, analytics, and the interview and company
+              preparation sections are all behind login. Everything above is open.
             </CardDescription>
           </div>
         </CardHeader>
