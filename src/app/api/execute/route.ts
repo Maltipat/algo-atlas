@@ -3,6 +3,8 @@ import type { Language } from "@/types";
 import { getProblemBySlug } from "@/services/problem-service";
 import { simulateExecution } from "@/lib/execution/mock-judge";
 import type { ExecuteRequest, ExecutionResult } from "@/lib/execution/types";
+import { LOGIN_REQUIRED_MESSAGE } from "@/lib/auth/routes";
+import { sessionFromRequest } from "@/lib/auth/session";
 
 const LANGS: Language[] = ["cpp", "java", "python", "javascript"];
 
@@ -17,6 +19,12 @@ const LANGS: Language[] = ["cpp", "java", "python", "javascript"];
  * Otherwise the simulated judge answers.
  */
 export async function POST(req: Request) {
+  // Checked here as well as in middleware: this handler must never execute code for
+  // an unauthenticated caller, even if it is reached by some path that skips the gate.
+  if (!(await sessionFromRequest(req))) {
+    return NextResponse.json({ error: LOGIN_REQUIRED_MESSAGE }, { status: 401 });
+  }
+
   let body: ExecuteRequest;
   try {
     body = (await req.json()) as ExecuteRequest;

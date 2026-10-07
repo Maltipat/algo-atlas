@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Bell, Flame, LogOut, Menu, Moon, Search, Settings, Sun, User } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
+import { signOut } from "@/services/auth-service";
 import { useHydrated, useStats } from "@/hooks/use-app";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown";
@@ -79,9 +80,8 @@ function DemoBadge() {
 
 function UserMenu() {
   const user = useAppStore((s) => s.user);
-  const logout = useAppStore((s) => s.logout);
   const router = useRouter();
-  if (!user) return null;
+  if (!user) return <Button size="sm" onClick={() => router.push("/login")}>Log in</Button>;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -97,7 +97,7 @@ function UserMenu() {
         <DropdownMenuItem onSelect={() => router.push("/profile")}><User /> Profile</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => router.push("/settings")}><Settings /> Settings</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => { logout(); router.replace("/login"); }}><LogOut /> Log out</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => { void signOut().then(() => router.replace("/login")); }}><LogOut /> Log out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

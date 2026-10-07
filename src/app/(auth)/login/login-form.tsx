@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { useHydrated } from "@/hooks/use-app";
-import { signIn } from "@/services/auth-service";
+import { signIn, signInDemo } from "@/services/auth-service";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 
@@ -15,7 +15,6 @@ export function LoginForm() {
   const next = useSearchParams().get("next") || "/";
   const hydrated = useHydrated();
   const user = useAppStore((s) => s.user);
-  const loginDemo = useAppStore((s) => s.loginDemo);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +42,20 @@ export function LoginForm() {
         <Button type="submit" className="w-full" disabled={busy}>{busy && <LoaderCircle className="animate-spin" />} Log in</Button>
       </form>
       <div className="my-5 flex items-center gap-3 text-xs text-muted"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
-      <Button variant="outline" className="w-full" onClick={() => { loginDemo(); router.replace(next); }}>Continue with the demo account</Button>
+      <Button
+        variant="outline"
+        className="w-full"
+        disabled={busy}
+        onClick={async () => {
+          setError(null);
+          setBusy(true);
+          const res = await signInDemo();
+          setBusy(false);
+          if (!res.ok) setError(res.error);
+        }}
+      >
+        Continue with the demo account
+      </Button>
       <p className="mt-2 text-center text-xs text-muted">The demo account (demo@algoatlas.app) has five months of sample progress.</p>
       <p className="mt-4 rounded-md bg-primary-soft px-3 py-2 text-center text-xs text-muted">This is a portfolio demo. Sign-in is simulated and no account is real — everything you do is stored only in your own browser and is visible to nobody else.</p>
       <p className="mt-6 text-center text-sm text-muted">New here? <Link href="/signup" className="font-medium text-primary hover:underline">Create an account</Link></p>

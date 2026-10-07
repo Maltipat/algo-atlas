@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -10,7 +11,8 @@ import type { Language, RevisionRating } from "@/types";
 import { LANGUAGES } from "@/types";
 import { problemsBySlug } from "@/data/problems";
 import { achievementsById } from "@/data/achievements";
-import { executeCode } from "@/services/execution-service";
+import { executeCode, UnauthenticatedError } from "@/services/execution-service";
+import { LOGIN_REQUIRED_MESSAGE, loginUrl } from "@/lib/auth/routes";
 import type { ExecutionResult } from "@/lib/execution/types";
 import { nextProblemAfter } from "@/lib/engine/recommend";
 import { RATING_LABELS } from "@/lib/engine/revision";
@@ -47,6 +49,7 @@ function useElapsed(resetKey: number) {
 
 export function ProblemWorkspace({ slug }: { slug: string }) {
   const problem = problemsBySlug[slug]!;
+  const router = useRouter();
   const state = useAppStore();
   const stats = useStats();
   const settings = state.settings;
@@ -97,6 +100,13 @@ export function ProblemWorkspace({ slug }: { slug: string }) {
 
   const execute = useCallback(async (mode: "run" | "submit") => {
     if (running) return;
+    // First gate: never start a protected action for a signed-out visitor. The server
+    // enforces this independently, so removing this check in DevTools changes nothing.
+    if (!useAppStore.getState().user) {
+      toast.error(LOGIN_REQUIRED_MESSAGE, { description: "Running and submitting code needs an account." });
+      router.push(loginUrl(`/problems/${problem.slug}`));
+      return;
+    }
     setRunning(mode);
     setConsoleTab("result");
     setMobileView("code");
@@ -110,12 +120,18 @@ export function ProblemWorkspace({ slug }: { slug: string }) {
         else toast.error(res.status, { description: res.error ?? `${res.passed} of ${res.total} test cases passed. The attempt was recorded.` });
       }
     } catch (e) {
+      // Second gate: the server refused. Mirror that in the UI and send them to log in.
+      if (e instanceof UnauthenticatedError) {
+        toast.error(e.message, { description: "Running and submitting code needs an account." });
+        router.push(loginUrl(`/problems/${problem.slug}`));
+        return;
+      }
       const message = e instanceof Error ? e.message : "Unknown error";
       toast.error("Could not run your code", { description: message });
     } finally {
       setRunning(null);
     }
-  }, [running, problem, language, code, timer, solutionShown, hintsShown]);
+  }, [running, problem, language, code, timer, solutionShown, hintsShown, router]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
