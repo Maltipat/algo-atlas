@@ -1,0 +1,417 @@
+// DSA Mastery database schema (PostgreSQL).
+// The app runs on mock data by default; see README "Switching to PostgreSQL".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Difficulty {
+  Easy
+  Medium
+  Hard
+}
+
+enum LearningLevel {
+  Beginner
+  Intermediate
+  Advanced
+  Interview
+}
+
+enum TopicTier {
+  Beginner
+  Intermediate
+  Advanced
+}
+
+enum Language {
+  cpp
+  java
+  python
+  javascript
+}
+
+enum ProblemStatus {
+  todo
+  attempted
+  solved
+}
+
+enum SubmissionStatus {
+  Accepted
+  WrongAnswer         @map("Wrong Answer")
+  RuntimeError        @map("Runtime Error")
+  TimeLimitExceeded   @map("Time Limit Exceeded")
+  CompilationError    @map("Compilation Error")
+}
+
+enum RevisionRating {
+  easy
+  practice
+  difficult
+  forgot
+}
+
+enum QuestionType {
+  Coding
+  Conceptual
+  Behavioral
+  Design
+}
+
+enum AchievementCategory {
+  Milestone
+  Streak
+  Mastery
+  Skill
+  Habit
+}
+
+// ---------------------------------------------------------------- users
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  username      String   @unique
+  name          String
+  bio           String   @default("")
+  passwordHash  String?
+  avatarHue     Int      @default(245)
+  xp            Int      @default(0)
+  // preferences
+  preferredLanguage Language @default(javascript)
+  editorFontSize    Int      @default(14)
+  dailyGoal         Int      @default(3)
+  weeklyGoal        Int      @default(15)
+  unlockAllTopics   Boolean  @default(false)
+  emailReminders    Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  submissions      Submission[]
+  progress         Progress[]
+  lessonProgress   LessonProgress[]
+  bookmarks        Bookmark[]
+  revisions        Revision[]
+  achievements     UserAchievement[]
+  learningPaths    UserLearningPath[]
+  dailyActivity    DailyActivity[]
+  dailyChallenges  UserDailyChallenge[]
+}
+
+// ---------------------------------------------------------------- curriculum
+
+model Topic {
+  id             String    @id @default(cuid())
+  slug           String    @unique
+  name           String
+  level          Int
+  order          Int       @unique
+  tier           TopicTier
+  icon           String
+  summary        String
+  what           String
+  why            String
+  whereUsed      String[]
+  estimatedHours Int
+  quiz           Json      // QuizQuestion[]
+
+  subTopics      SubTopic[]
+  problems       Problem[]
+  prerequisites  TopicPrerequisite[] @relation("TopicPrereqs")
+  requiredBy     TopicPrerequisite[] @relation("TopicRequiredBy")
+  lessonProgress LessonProgress[]
+
+  @@index([level])
+}
+
+model TopicPrerequisite {
+  topicId        String
+  prerequisiteId String
+  topic          Topic @relation("TopicPrereqs", fields: [topicId], references: [id], onDelete: Cascade)
+  prerequisite   Topic @relation("TopicRequiredBy", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+
+  @@id([topicId, prerequisiteId])
+}
+
+/// A concept (lesson) inside a topic.
+model SubTopic {
+  id          String   @id @default(cuid())
+  slug        String
+  title       String
+  order       Int
+  explanation String
+  visual      String?
+  frames      Json?
+  code        String
+  complexity  String
+  mistakes    String[]
+  tips        String[]
+  topicId     String
+  topic       Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([topicId, slug])
+}
+
+model Pattern {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  icon        String
+  summary     String
+  explanation String
+  whenToUse   String[]
+  signals     String[]
+  template    String
+  problems    Problem[]
+}
+
+model Company {
+  id          String              @id @default(cuid())
+  slug        String              @unique
+  name        String
+  color       String
+  description String
+  process     String[]
+  focusTopics Json                // { topic: string; weight: number }[]
+  problems    Problem[]
+  questions   InterviewQuestion[]
+}
+
+model InterviewQuestion {
+  id            String       @id
+  type          QuestionType
+  question      String
+  answerOutline String
+  companyId     String
+  company       Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  problemId     String?
+  problem       Problem?     @relation(fields: [problemId], references: [id])
+}
+
+model Problem {
+  id               String        @id @default(cuid())
+  number           Int           @unique
+  slug             String        @unique
+  title            String
+  description      String
+  examples         Json          // Example[]
+  constraints      String[]
+  difficulty       Difficulty
+  level            LearningLevel
+  subtopic         String
+  tags             String[]
+  hints            String[]
+  explanation      String
+  approach         String[]
+  alternatives     Json          // AlternativeApproach[]
+  solution         Json          // Partial<Record<Language, string>>
+  timeComplexity   String
+  spaceComplexity  String
+  starterCode      Json          // Record<Language, string>
+  signature        Json          // FnSignature | DesignSignature
+  expectedOutput   String
+  compare          String        @default("exact")
+  runnable         Boolean       @default(true)
+  acceptance       Float
+  frequency        Int
+  solvedCount      Int
+  estimatedMinutes Int
+  addedAt          DateTime
+
+  topicId          String
+  topic            Topic         @relation(fields: [topicId], references: [id])
+  patterns         Pattern[]
+  companies        Company[]
+  testCases        TestCase[]
+  submissions      Submission[]
+  progress         Progress[]
+  bookmarks        Bookmark[]
+  revisions        Revision[]
+  dailyChallenges  DailyChallenge[]
+  interviewQuestions InterviewQuestion[]
+
+  @@index([topicId, difficulty])
+  @@index([difficulty])
+  @@index([frequency])
+}
+
+model TestCase {
+  id        String  @id
+  order     Int
+  input     Json
+  expected  Json
+  hidden    Boolean @default(false)
+  problemId String
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@index([problemId])
+}
+
+// ---------------------------------------------------------------- learner state
+
+model Submission {
+  id           String           @id @default(cuid())
+  language     Language
+  code         String
+  status       SubmissionStatus
+  runtimeMs    Int
+  memoryMb     Float
+  passed       Int
+  total        Int
+  timeSpentSec Int
+  simulated    Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problemId    String
+  problem      Problem          @relation(fields: [problemId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([userId, problemId])
+}
+
+/// Per-user, per-problem progress.
+model Progress {
+  userId         String
+  problemId      String
+  status         ProblemStatus @default(todo)
+  attempts       Int           @default(0)
+  firstSolvedAt  DateTime?
+  lastActivityAt DateTime      @default(now())
+  bestRuntimeMs  Int?
+  timeSpentSec   Int           @default(0)
+  usedSolution   Boolean       @default(false)
+  hintsUsed      Int           @default(0)
+  note           String?
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem        Problem       @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@id([userId, problemId])
+  @@index([userId, status])
+}
+
+/// Learning Mode progress per topic (8 steps).
+model LessonProgress {
+  userId         String
+  topicId        String
+  step           Int       @default(1)
+  completedSteps Int[]
+  quizScore      Int?
+  completed      Boolean   @default(false)
+  completedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic          Topic     @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([userId, topicId])
+}
+
+model Bookmark {
+  userId    String
+  problemId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem   Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@id([userId, problemId])
+}
+
+/// Spaced-repetition state for a solved problem.
+model Revision {
+  userId         String
+  problemId      String
+  intervalDays   Int
+  dueDate        DateTime       @db.Date
+  lastRating     RevisionRating
+  reviews        Int            @default(0)
+  lapses         Int            @default(0)
+  easyStreak     Int            @default(0)
+  lastReviewedAt DateTime
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem        Problem        @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@id([userId, problemId])
+  @@index([userId, dueDate])
+}
+
+/// Aggregated activity per local calendar day (streaks, heatmaps, analytics).
+model DailyActivity {
+  userId   String
+  day      DateTime @db.Date
+  solved   Int      @default(0)
+  attempted Int     @default(0)
+  minutes  Int      @default(0)
+  xp       Int      @default(0)
+  reviews  Int      @default(0)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+}
+
+model Achievement {
+  id          String              @id
+  name        String
+  emoji       String
+  description String
+  xp          Int
+  category    AchievementCategory
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  userId        String
+  achievementId String
+  unlockedAt    DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@id([userId, achievementId])
+}
+
+/// The global problem of the day.
+model DailyChallenge {
+  day       DateTime             @id @db.Date
+  problemId String
+  problem   Problem              @relation(fields: [problemId], references: [id])
+  users     UserDailyChallenge[]
+}
+
+/// A learner's personalised daily challenge and whether they completed it.
+model UserDailyChallenge {
+  userId    String
+  day       DateTime       @db.Date
+  problemId String
+  completed Boolean        @default(false)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge DailyChallenge? @relation(fields: [day], references: [day])
+
+  @@id([userId, day])
+}
+
+model LearningPath {
+  id           String             @id @default(cuid())
+  slug         String             @unique
+  name         String
+  description  String
+  audience     String
+  durationDays Int
+  days         Json               // PlanDay[]
+  enrollments  UserLearningPath[]
+}
+
+model UserLearningPath {
+  userId         String
+  learningPathId String
+  startedAt      DateTime     @default(now())
+  completedDays  Int[]
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  learningPath   LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+
+  @@id([userId, learningPathId])
+}
