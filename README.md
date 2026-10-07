@@ -1,5 +1,7 @@
 # AlgoAtlas
 
+**[Live demo →](https://algo-atlas-olive.vercel.app)**
+
 A learning and practice platform for data structures and algorithms, from first loops to interview level. It combines a five-level roadmap, lessons with worked examples and quizzes, 264 practice problems with an in-browser judge, spaced-repetition revision, interview preparation and progress analytics.
 
 Built with Next.js 15, React 19, TypeScript, Tailwind 4, Zustand and Prisma.
@@ -125,3 +127,7 @@ Login and signup are a mock: accounts live in the browser. The demo account is `
 - **Code sources:** reference solutions are verified JavaScript, and many problems also include Python. Lesson and pattern code is Python, for readability.
 - **Company tags and frequencies** are curated for practice. They are not official data from those companies.
 - **Accessibility:** colours are defined as CSS variables in `src/app/globals.css` for both themes. Motion respects `prefers-reduced-motion`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
