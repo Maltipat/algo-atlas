@@ -12,7 +12,7 @@ import { useAppStore } from "@/store/app-store";
  * or your provider and load progress from /api routes backed by Prisma. The session
  * endpoint and route guards stay as they are.
  */
-type Result = { ok: true } | { ok: false; error: string };
+type Result = { ok: true } | { ok: false; error: string; code?: "no-account" };
 
 const EMAIL = /^\S+@\S+\.\S+$/;
 
@@ -58,7 +58,9 @@ export async function signIn(email: string, password: string): Promise<Result> {
   if (password.length < 6) return { ok: false, error: "Password must be at least 6 characters." };
   await new Promise((r) => setTimeout(r, 300));
   const ok = useAppStore.getState().login(email);
-  if (!ok) return { ok: false, error: "No account with this email exists in this browser. Create an account or use the demo account." };
+  // Accounts are per-browser, so a first-time visitor has nothing to log in to.
+  // Flagged so the form can offer signup with this email rather than dead-ending.
+  if (!ok) return { ok: false, code: "no-account", error: "No account with this email exists in this browser. Accounts are saved per browser, so you need to create one here first." };
   if (!(await openServerSession())) {
     useAppStore.getState().logout();
     return { ok: false, error: SESSION_FAILED };

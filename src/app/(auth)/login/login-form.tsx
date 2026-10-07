@@ -18,6 +18,7 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [noAccount, setNoAccount] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { if (hydrated && user) router.replace(next); }, [hydrated, user, router, next]);
@@ -25,10 +26,14 @@ export function LoginForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNoAccount(false);
     setBusy(true);
     const res = await signIn(email, password);
     setBusy(false);
-    if (!res.ok) setError(res.error);
+    if (!res.ok) {
+      setError(res.error);
+      setNoAccount(res.code === "no-account");
+    }
   };
 
   return (
@@ -38,7 +43,16 @@ export function LoginForm() {
       <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
         <div><Label htmlFor="email">Email</Label><Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
         <div><Label htmlFor="password">Password</Label><Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
-        {error && <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && (
+          <div role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">
+            <p>{error}</p>
+            {noAccount && (
+              <Link href={`/signup?email=${encodeURIComponent(email)}`} className="mt-1 inline-block font-medium underline">
+                Create an account for {email}
+              </Link>
+            )}
+          </div>
+        )}
         <Button type="submit" className="w-full" disabled={busy}>{busy && <LoaderCircle className="animate-spin" />} Log in</Button>
       </form>
       <div className="my-5 flex items-center gap-3 text-xs text-muted"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>

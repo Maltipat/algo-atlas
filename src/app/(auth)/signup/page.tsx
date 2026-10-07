@@ -1,16 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { signUp } from "@/services/auth-service";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 
 export default function SignupPage() {
+  return <Suspense><SignupForm /></Suspense>;
+}
+
+function SignupForm() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  // Carried over when someone tried to log in with an email that has no account here.
+  const prefilledEmail = useSearchParams().get("email") ?? "";
+  const [form, setForm] = useState({ name: "", email: prefilledEmail, password: "" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
