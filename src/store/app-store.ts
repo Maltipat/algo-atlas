@@ -115,7 +115,9 @@ export const useAppStore = create<AppState>()(
       hydrated: false,
 
       ensureInitialized: () => {
-        if (!get().initialized) set({ ...createDemoProgress() });
+        // First visit starts signed out, so the login screen is the landing page and
+        // the demo is something a visitor opts into rather than lands inside.
+        if (!get().initialized) set({ ...emptyProgress() });
       },
       loginDemo: () => {
         const s = get();
