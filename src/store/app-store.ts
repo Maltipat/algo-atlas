@@ -135,7 +135,7 @@ export const useAppStore = create<AppState>()(
         set({
           ...fresh,
           user: { id: uid("u"), name, email, username: email.split("@")[0]!.replace(/[^a-z0-9_]/gi, "_").toLowerCase(), bio: "", joinedAt: new Date().toISOString(), avatarHue: Math.floor(Math.random() * 360) },
-          notifications: [{ id: uid("n"), title: "Welcome to DSA Mastery", body: "Start with Programming Basics on the roadmap, or take the 30-Day plan.", createdAt: new Date().toISOString(), read: false, href: "/roadmap" }],
+          notifications: [{ id: uid("n"), title: "Welcome to AlgoAtlas", body: "Start with Programming Basics on the roadmap, or take the 30-Day plan.", createdAt: new Date().toISOString(), read: false, href: "/roadmap" }],
         });
       },
       logout: () => set({ signedOutUser: get().user, user: null }),

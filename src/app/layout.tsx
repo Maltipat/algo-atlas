@@ -9,7 +9,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: { default: "DSA Mastery", template: "%s | DSA Mastery" },
+  title: { default: "AlgoAtlas", template: "%s | AlgoAtlas" },
   description: "Learn data structures and algorithms from first principles to interview level: roadmap, lessons, 260+ problems, revision and analytics.",
 };
 

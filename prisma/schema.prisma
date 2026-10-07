@@ -1,4 +1,4 @@
-// DSA Mastery database schema (PostgreSQL).
+// AlgoAtlas database schema (PostgreSQL).
 // The app runs on mock data by default; see README "Switching to PostgreSQL".
 
 generator client {

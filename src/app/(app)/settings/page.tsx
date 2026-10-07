@@ -44,7 +44,7 @@ export default function SettingsPage() {
     const blob = new Blob([JSON.stringify(dataOf(useAppStore.getState()), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `dsa-mastery-progress-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+    a.href = url; a.download = `algo-atlas-progress-${new Date().toISOString().slice(0, 10)}.json`; a.click();
     URL.revokeObjectURL(url);
     toast.success("Progress exported");
   };
