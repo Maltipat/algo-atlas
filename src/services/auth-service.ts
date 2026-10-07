@@ -12,7 +12,7 @@ import { useAppStore } from "@/store/app-store";
  * or your provider and load progress from /api routes backed by Prisma. The session
  * endpoint and route guards stay as they are.
  */
-type Result = { ok: true } | { ok: false; error: string; code?: "no-account" };
+type Result = { ok: true } | { ok: false; error: string; code?: "no-account" | "duplicate" };
 
 const EMAIL = /^\S+@\S+\.\S+$/;
 
@@ -73,7 +73,11 @@ export async function signUp(name: string, email: string, password: string): Pro
   if (!EMAIL.test(email)) return { ok: false, error: "Enter a valid email address." };
   if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
   await new Promise((r) => setTimeout(r, 300));
-  useAppStore.getState().signup(name.trim(), email.trim());
+  // Accounts live per browser, so a repeat email would otherwise silently take over
+  // the existing one. Refuse instead and point the person at logging in.
+  if (!useAppStore.getState().signup(name.trim(), email.trim())) {
+    return { ok: false, code: "duplicate", error: "An account with this email already exists in this browser. Log in instead." };
+  }
   if (!(await openServerSession())) {
     useAppStore.getState().logout();
     return { ok: false, error: SESSION_FAILED };

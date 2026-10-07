@@ -28,7 +28,8 @@ interface Actions {
   ensureInitialized: () => void;
   loginDemo: () => void;
   login: (email: string) => boolean;
-  signup: (name: string, email: string) => void;
+  /** False when an account with this email already exists in this browser. */
+  signup: (name: string, email: string) => boolean;
   logout: () => void;
   resetProgress: () => void;
   updateProfile: (patch: Partial<Pick<UserProfile, "name" | "bio" | "username" | "email">>) => void;
@@ -58,7 +59,11 @@ interface Actions {
   clearNotifications: () => void;
 }
 
-export type AppState = ProgressData & Actions & { hydrated: boolean };
+export type AppState = ProgressData & Actions & {
+  hydrated: boolean;
+  /** Every account this browser knows, keyed by user id. The live fields above are a copy of the signed-in one. */
+  accounts: Record<string, ProgressData>;
+};
 
 const MAX_SUBMISSIONS = 600;
 
@@ -102,6 +107,22 @@ function touch(p: ProblemProgress | undefined): ProblemProgress {
   return p ? { ...p, lastActivityAt: new Date().toISOString() } : { status: "todo", attempts: 0, lastActivityAt: new Date().toISOString(), timeSpentSec: 0 };
 }
 
+/** What actually goes into localStorage: every account, plus which one is active. */
+type PersistedShape = { currentUserId: string | null; accounts: Record<string, ProgressData> };
+
+/**
+ * The account vault with the signed-in user's live data folded back in, so no
+ * switch or write can drop whatever the current session has done so far.
+ */
+function snapshot(s: AppState): Record<string, ProgressData> {
+  return s.user ? { ...s.accounts, [s.user.id]: dataOf(s) } : s.accounts;
+}
+
+function findByEmail(accounts: Record<string, ProgressData>, email: string): ProgressData | undefined {
+  const e = email.trim().toLowerCase();
+  return Object.values(accounts).find((d) => d.user?.email.trim().toLowerCase() === e);
+}
+
 function dataOf(s: AppState): ProgressData {
   const { initialized, user, signedOutUser, settings, xp, problemProgress, submissions, bookmarks, revision, lessons, activity, achievements, notifications, dailyChallenges, planEnrollments, mockSessions, studyLog, drafts, notes, dailyPlanChecks } = s;
   return { initialized, user, signedOutUser, settings, xp, problemProgress, submissions, bookmarks, revision, lessons, activity, achievements, notifications, dailyChallenges, planEnrollments, mockSessions, studyLog, drafts, notes, dailyPlanChecks };
@@ -113,6 +134,7 @@ export const useAppStore = create<AppState>()(
       ...emptyProgress(),
       initialized: false,
       hydrated: false,
+      accounts: {},
 
       ensureInitialized: () => {
         // First visit starts signed out, so the login screen is the landing page and
@@ -121,26 +143,42 @@ export const useAppStore = create<AppState>()(
       },
       loginDemo: () => {
         const s = get();
-        if (s.signedOutUser?.id === "u_demo") set({ user: s.signedOutUser, signedOutUser: null });
-        else if (s.user?.id !== "u_demo") set({ ...createDemoProgress() });
+        if (s.user?.id === "u_demo") return;
+        const accounts = snapshot(s);
+        // Reuse the demo account's saved state if this browser already has it.
+        const data = accounts["u_demo"] ?? createDemoProgress();
+        set({ ...data, accounts });
       },
       login: (email) => {
         const s = get();
         const e = email.trim().toLowerCase();
         if (s.user && s.user.email.toLowerCase() === e) return true;
-        if (s.signedOutUser && s.signedOutUser.email.toLowerCase() === e) { set({ user: s.signedOutUser, signedOutUser: null }); return true; }
-        if (e === "demo@algoatlas.app") { set({ ...createDemoProgress() }); return true; }
+        const accounts = snapshot(s);
+        const existing = findByEmail(accounts, e);
+        if (existing) { set({ ...existing, accounts }); return true; }
+        if (e === "demo@algoatlas.app") { set({ ...createDemoProgress(), accounts }); return true; }
         return false;
       },
       signup: (name, email) => {
-        const fresh = emptyProgress();
-        set({
-          ...fresh,
-          user: { id: uid("u"), name, email, username: email.split("@")[0]!.replace(/[^a-z0-9_]/gi, "_").toLowerCase(), bio: "", joinedAt: new Date().toISOString(), avatarHue: Math.floor(Math.random() * 360) },
+        const s = get();
+        const accounts = snapshot(s);
+        if (findByEmail(accounts, email)) return false;
+        const id = uid("u");
+        const fresh: ProgressData = {
+          ...emptyProgress(),
+          user: { id, name, email, username: email.split("@")[0]!.replace(/[^a-z0-9_]/gi, "_").toLowerCase(), bio: "", joinedAt: new Date().toISOString(), avatarHue: Math.floor(Math.random() * 360) },
           notifications: [{ id: uid("n"), title: "Welcome to AlgoAtlas", body: "Start with Programming Basics on the roadmap, or take the 30-Day plan.", createdAt: new Date().toISOString(), read: false, href: "/roadmap" }],
-        });
+        };
+        // The new account is added alongside the others, never on top of them.
+        set({ ...fresh, accounts: { ...accounts, [id]: fresh } });
+        return true;
       },
-      logout: () => set({ signedOutUser: get().user, user: null }),
+      logout: () => {
+        // Save the session's work into the vault, then clear the live fields so a
+        // signed-out visitor never sees the previous account's data.
+        const accounts = snapshot(get());
+        set({ ...emptyProgress(), accounts });
+      },
       resetProgress: () => {
         const user = get().user;
         set({ ...emptyProgress(), user, settings: get().settings });
@@ -326,10 +364,28 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "dsa-mastery-progress",
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      partialize: (s) => dataOf(s),
+      partialize: (s) => ({ currentUserId: s.user?.id ?? null, accounts: snapshot(s) }),
+      /**
+       * v1 persisted a single flat account. Fold it into the vault so anyone who
+       * already used this browser keeps their progress and stays signed in.
+       */
+      migrate: (persisted, version) => {
+        if (version >= 2) return persisted as PersistedShape;
+        const old = persisted as Partial<ProgressData> | null;
+        const accounts: Record<string, ProgressData> = {};
+        const carry = old?.user ?? old?.signedOutUser ?? null;
+        if (old && carry) accounts[carry.id] = { ...(emptyProgress()), ...old, user: carry };
+        return { currentUserId: old?.user?.id ?? null, accounts };
+      },
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<PersistedShape>;
+        const accounts = p.accounts ?? {};
+        const active = p.currentUserId ? accounts[p.currentUserId] : undefined;
+        return { ...current, ...(active ?? {}), accounts };
+      },
       onRehydrateStorage: () => () => {
         useAppStore.setState({ hydrated: true });
       },

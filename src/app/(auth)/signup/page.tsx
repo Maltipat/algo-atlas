@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { signUp } from "@/services/auth-service";
+import { safeNext } from "@/lib/auth/routes";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 
@@ -13,9 +14,11 @@ export default function SignupPage() {
 }
 
 function SignupForm() {
-  const router = useRouter();
   // Carried over when someone tried to log in with an email that has no account here.
-  const prefilledEmail = useSearchParams().get("email") ?? "";
+  const params = useSearchParams();
+  const prefilledEmail = params.get("email") ?? "";
+  // Carried from /login?next=… so the protected page someone asked for still opens.
+  const next = safeNext(params.get("next"));
   const [form, setForm] = useState({ name: "", email: prefilledEmail, password: "" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,7 +30,8 @@ function SignupForm() {
     const res = await signUp(form.name, form.email, form.password);
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
-    router.replace("/roadmap");
+    // Document navigation for the same Router Cache reason as the login page.
+    window.location.assign(next === "/" ? "/roadmap" : next);
   };
 
   return (

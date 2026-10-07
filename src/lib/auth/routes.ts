@@ -66,6 +66,36 @@ export function loginUrl(nextPath: string): string {
 }
 
 /**
+ * Only ever redirect to a path inside this app. Anything else — an absolute URL,
+ * a protocol-relative `//evil.com`, a backslash variant that some browsers
+ * normalise to one — becomes the dashboard, so `next` cannot drive an open
+ * redirect off-site.
+ */
+export function safeNext(raw: string | null | undefined): string {
+  if (!raw) return "/";
+  let value = raw;
+  try {
+    value = decodeURIComponent(raw);
+  } catch {
+    return "/";
+  }
+  value = value.trim();
+  if (!value.startsWith("/")) return "/";
+  if (value.startsWith("//") || value.startsWith("/\\")) return "/";
+  if (/^\/[^/]*:/.test(value)) return "/";
+  return value;
+}
+
+/** Carries the destination from the login page into signup, so it survives the detour. */
+export function signupUrl(nextPath: string, email?: string): string {
+  const params = new URLSearchParams();
+  if (nextPath && nextPath !== "/") params.set("next", nextPath);
+  if (email) params.set("email", email);
+  const qs = params.toString();
+  return qs ? `/signup?${qs}` : "/signup";
+}
+
+/**
  * Public pages that still hold account-only actions, listed so the UI can label
  * them honestly. Nothing is enforced from this list — the actions gate themselves.
  */

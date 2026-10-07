@@ -1,19 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { useHydrated } from "@/hooks/use-app";
-import { signIn, signInDemo } from "@/services/auth-service";
-import { LOGIN_REQUIRED_MESSAGE } from "@/lib/auth/routes";
+import { hasServerSession, signIn, signInDemo } from "@/services/auth-service";
+import { LOGIN_REQUIRED_MESSAGE, safeNext, signupUrl } from "@/lib/auth/routes";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 
 export function LoginForm() {
-  const router = useRouter();
-  const next = useSearchParams().get("next") || "/";
+  const next = safeNext(useSearchParams().get("next"));
   const hydrated = useHydrated();
   const user = useAppStore((s) => s.user);
   const [email, setEmail] = useState("");
@@ -22,7 +21,29 @@ export function LoginForm() {
   const [noAccount, setNoAccount] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (hydrated && user) router.replace(next); }, [hydrated, user, router, next]);
+  /**
+   * Leaving the login page waits for the server session, not for the store.
+   *
+   * The store's `user` is set the instant the client-side sign-in succeeds, which is
+   * before POST /api/auth/session has returned the cookie. Navigating on that signal
+   * sent a request carrying no session, so middleware bounced it back here and the
+   * page appeared to hang. Navigation now happens from the awaited sign-in result,
+   * by which point the cookie exists.
+   *
+   * A full document navigation is used so the server sees the new cookie on the next
+   * request rather than a client-cached response.
+   */
+  const leave = () => window.location.assign(next);
+
+  // Someone who is already signed in should not sit on the login page — but only
+  // leave once the server agrees there is a session, otherwise this races too.
+  useEffect(() => {
+    if (!hydrated || !user) return;
+    let cancelled = false;
+    void hasServerSession().then((ok) => { if (ok && !cancelled) leave(); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, user, next]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +55,9 @@ export function LoginForm() {
     if (!res.ok) {
       setError(res.error);
       setNoAccount(res.code === "no-account");
+      return;
     }
+    leave();
   };
 
   return (
@@ -54,7 +77,7 @@ export function LoginForm() {
           <div role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">
             <p>{error}</p>
             {noAccount && (
-              <Link href={`/signup?email=${encodeURIComponent(email)}`} className="mt-1 inline-block font-medium underline">
+              <Link href={signupUrl(next, email)} className="mt-1 inline-block font-medium underline">
                 Create an account for {email}
               </Link>
             )}
@@ -72,14 +95,15 @@ export function LoginForm() {
           setBusy(true);
           const res = await signInDemo();
           setBusy(false);
-          if (!res.ok) setError(res.error);
+          if (!res.ok) { setError(res.error); return; }
+          leave();
         }}
       >
         Continue with the demo account
       </Button>
       <p className="mt-2 text-center text-xs text-muted">The demo account (demo@algoatlas.app) has five months of sample progress.</p>
       <p className="mt-4 rounded-md bg-primary-soft px-3 py-2 text-center text-xs text-muted">This is a portfolio demo. Sign-in is simulated and no account is real — everything you do is stored only in your own browser and is visible to nobody else.</p>
-      <p className="mt-6 text-center text-sm text-muted">New here? <Link href="/signup" className="font-medium text-primary hover:underline">Create an account</Link></p>
+      <p className="mt-6 text-center text-sm text-muted">New here? <Link href={signupUrl(next)} className="font-medium text-primary hover:underline">Create an account</Link></p>
     </div>
   );
 }
