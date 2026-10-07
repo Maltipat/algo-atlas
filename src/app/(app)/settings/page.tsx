@@ -89,7 +89,7 @@ export default function SettingsPage() {
       <Dialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
         <DialogContent>
           <DialogTitle>{confirm === "reset" ? "Reset all progress?" : "Replace your data with the demo account?"}</DialogTitle>
-          <DialogDescription>{confirm === "reset" ? "Solved problems, submissions, revision history, XP and achievements will be deleted. Your profile and settings are kept. This cannot be undone." : "Your current progress will be replaced by Aarav's sample history. Export first if you want to keep it."}</DialogDescription>
+          <DialogDescription>{confirm === "reset" ? "Solved problems, submissions, revision history, XP and achievements will be deleted. Your profile and settings are kept. This cannot be undone." : "Your current progress will be replaced by the demo account's sample history. Export first if you want to keep it."}</DialogDescription>
           <div className="mt-5 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
             <Button variant="danger" onClick={() => { if (confirm === "reset") { state.resetProgress(); toast.success("Progress reset"); } else { state.loginDemo(); toast.success("Demo data loaded"); } setConfirm(null); }}>{confirm === "reset" ? "Reset progress" : "Load demo data"}</Button>

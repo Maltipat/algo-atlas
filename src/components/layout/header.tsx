@@ -62,6 +62,21 @@ function Notifications() {
   );
 }
 
+/** Marks the seeded sample account, so a visitor is never left wondering whose profile this is. */
+function DemoBadge() {
+  const isDemo = useAppStore((s) => s.user?.id === "u_demo");
+  const hydrated = useHydrated();
+  if (!hydrated || !isDemo) return null;
+  return (
+    <span
+      className="mr-1 hidden rounded-full bg-primary-soft px-2.5 py-1 text-xs font-medium text-primary sm:block"
+      title="Sample account with generated history. Your activity is stored only in this browser and is visible to nobody else."
+    >
+      Demo
+    </span>
+  );
+}
+
 function UserMenu() {
   const user = useAppStore((s) => s.user);
   const logout = useAppStore((s) => s.logout);
@@ -76,6 +91,7 @@ function UserMenu() {
         <DropdownMenuLabel>
           <span className="block text-sm font-medium text-foreground">{user.name}</span>
           <span className="block">{user.email}</span>
+          {user.id === "u_demo" && <span className="mt-1 block text-[11px]">Sample account — stored only in this browser.</span>}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push("/profile")}><User /> Profile</DropdownMenuItem>
@@ -108,6 +124,7 @@ export function Header({ onMenu }: { onMenu: () => void }) {
         <kbd className="ml-auto hidden rounded border border-border px-1.5 text-[10px] sm:block">Ctrl K</kbd>
       </button>
       <div className="ml-auto flex items-center gap-1">
+        <DemoBadge />
         {hydrated && (
           <Link href="/analytics" className="mr-1 hidden items-center gap-1 rounded-full border border-border px-2.5 py-1 text-sm font-medium sm:flex" aria-label={`${stats.currentStreak} day streak`}>
             <Flame className={cn("size-4", stats.activeToday ? "text-warning" : "text-muted")} aria-hidden />

@@ -44,7 +44,8 @@ export function LoginForm() {
       </form>
       <div className="my-5 flex items-center gap-3 text-xs text-muted"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
       <Button variant="outline" className="w-full" onClick={() => { loginDemo(); router.replace(next); }}>Continue with the demo account</Button>
-      <p className="mt-2 text-center text-xs text-muted">The demo account (aarav.mehta@example.com) has five months of sample progress.</p>
+      <p className="mt-2 text-center text-xs text-muted">The demo account (demo@algoatlas.app) has five months of sample progress.</p>
+      <p className="mt-4 rounded-md bg-primary-soft px-3 py-2 text-center text-xs text-muted">This is a portfolio demo. Sign-in is simulated and no account is real — everything you do is stored only in your own browser and is visible to nobody else.</p>
       <p className="mt-6 text-center text-sm text-muted">New here? <Link href="/signup" className="font-medium text-primary hover:underline">Create an account</Link></p>
     </div>
   );

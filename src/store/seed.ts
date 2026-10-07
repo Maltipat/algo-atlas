@@ -66,8 +66,8 @@ export function createDemoProgress(now = new Date()): ProgressData {
   const iso = (d: Date, h = 19, m = 0) => { const r = new Date(d); r.setHours(h, m, Math.floor(rand() * 59), 0); return r.toISOString(); };
 
   data.user = {
-    id: "u_demo", name: "Aarav Mehta", email: "aarav.mehta@example.com", username: "aarav_codes",
-    bio: "Final-year CS student preparing for product company interviews.",
+    id: "u_demo", name: "Demo Learner", email: "demo@algoatlas.app", username: "demo_learner",
+    bio: "Sample account with five months of generated history, so every screen has something to show. Create your own account to start from zero.",
     joinedAt: addDays(now, -150).toISOString(), avatarHue: 245,
   };
 

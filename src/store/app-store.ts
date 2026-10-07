@@ -127,7 +127,7 @@ export const useAppStore = create<AppState>()(
         const e = email.trim().toLowerCase();
         if (s.user && s.user.email.toLowerCase() === e) return true;
         if (s.signedOutUser && s.signedOutUser.email.toLowerCase() === e) { set({ user: s.signedOutUser, signedOutUser: null }); return true; }
-        if (e === "aarav.mehta@example.com") { set({ ...createDemoProgress() }); return true; }
+        if (e === "demo@algoatlas.app") { set({ ...createDemoProgress() }); return true; }
         return false;
       },
       signup: (name, email) => {
