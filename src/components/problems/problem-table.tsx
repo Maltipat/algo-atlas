@@ -5,6 +5,7 @@ import { Bookmark, BookmarkCheck, Building } from "lucide-react";
 import type { Problem } from "@/types";
 import { topicsBySlug } from "@/data/topics";
 import { useAppStore } from "@/store/app-store";
+import { useRequireAuth } from "@/hooks/use-require-auth";
 import { DifficultyText, StatusIcon } from "@/components/shared/difficulty";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ export function ProblemTable({ problems, showTopic = true, showCompanies = false
   const bookmarks = useAppStore((s) => s.bookmarks);
   const toggleBookmark = useAppStore((s) => s.toggleBookmark);
   const showTags = useAppStore((s) => s.settings.showTags);
+  const requireAuth = useRequireAuth();
 
   if (!problems.length) return <p className="px-4 py-10 text-center text-sm text-muted">{emptyMessage}</p>;
 
@@ -59,7 +61,7 @@ export function ProblemTable({ problems, showTopic = true, showCompanies = false
                 <td className="py-2.5 pr-3 text-right tabular-nums text-muted">{p.estimatedMinutes}m</td>
                 <td className="py-2.5 pr-4">
                   <div className="flex items-center justify-end gap-1">
-                    <button onClick={() => toggleBookmark(p.id)} className={cn("rounded-md p-1.5 hover:bg-surface-2", marked ? "text-primary" : "text-muted")} aria-label={marked ? `Remove ${p.title} from bookmarks` : `Bookmark ${p.title}`} aria-pressed={marked}>
+                    <button onClick={() => { if (requireAuth("Bookmarks are saved to your account.")) toggleBookmark(p.id); }} className={cn("rounded-md p-1.5 hover:bg-surface-2", marked ? "text-primary" : "text-muted")} aria-label={marked ? `Remove ${p.title} from bookmarks` : `Bookmark ${p.title}`} aria-pressed={marked}>
                       {marked ? <BookmarkCheck className="size-4" /> : <Bookmark className="size-4" />}
                     </button>
                     <Link href={`/problems/${p.slug}`} className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary-soft">

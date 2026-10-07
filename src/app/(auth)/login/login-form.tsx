@@ -7,6 +7,7 @@ import { LoaderCircle } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { useHydrated } from "@/hooks/use-app";
 import { signIn, signInDemo } from "@/services/auth-service";
+import { LOGIN_REQUIRED_MESSAGE } from "@/lib/auth/routes";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 
@@ -40,6 +41,12 @@ export function LoginForm() {
     <div>
       <h1 className="text-2xl font-semibold tracking-tight">Log in</h1>
       <p className="mt-1 text-sm text-muted">Pick up where you left off.</p>
+      {/* Set whenever a guard sent the visitor here, so the redirect is explained. */}
+      {next !== "/" && (
+        <p role="status" className="mt-4 rounded-md bg-warning-soft px-3 py-2 text-sm text-warning">
+          {LOGIN_REQUIRED_MESSAGE} You will be taken to <span className="font-medium">{next}</span> afterwards.
+        </p>
+      )}
       <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
         <div><Label htmlFor="email">Email</Label><Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
         <div><Label htmlFor="password">Password</Label><Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>

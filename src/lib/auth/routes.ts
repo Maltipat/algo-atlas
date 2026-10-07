@@ -9,8 +9,17 @@
 
 export const LOGIN_REQUIRED_MESSAGE = "Please log in first to access this feature.";
 
-/** Readable without an account: the curriculum and the auth pages themselves. */
+/**
+ * Readable without an account: the dashboard, the curriculum, the problem
+ * library and the auth pages. These let someone see what the app offers before
+ * signing up. Anything personal — progress, saved data, user-specific
+ * recommendations — is not here and therefore requires a session.
+ *
+ * Public pages may still contain protected *actions* (run, submit, bookmark);
+ * those are gated at the action, not the page.
+ */
 const PUBLIC_PAGES: RegExp[] = [
+  /^\/$/, // dashboard, which renders a signed-out overview
   /^\/login$/,
   /^\/signup$/,
   /^\/problems$/,
@@ -55,3 +64,12 @@ export function requiresSession(pathname: string): boolean {
 export function loginUrl(nextPath: string): string {
   return `/login?next=${encodeURIComponent(nextPath)}`;
 }
+
+/**
+ * Public pages that still hold account-only actions, listed so the UI can label
+ * them honestly. Nothing is enforced from this list — the actions gate themselves.
+ */
+export const PUBLIC_PAGES_WITH_PROTECTED_ACTIONS = [
+  { path: "/problems", actions: ["Bookmark"] },
+  { path: "/problems/[slug]", actions: ["Run", "Submit", "Bookmark", "Save draft", "Track progress", "Rate for revision"] },
+] as const;

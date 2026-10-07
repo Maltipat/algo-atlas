@@ -8,6 +8,7 @@ import { topicsBySlug } from "@/data/topics";
 import { patternsBySlug } from "@/data/patterns";
 import { companiesBySlug } from "@/data/companies";
 import { useAppStore } from "@/store/app-store";
+import { useRequireAuth } from "@/hooks/use-require-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ export function ProblemPanel({ problem, tab, onTab, hintsShown, onRevealHint, so
   const saveNote = useAppStore((s) => s.saveNote);
   const [solutionLang, setSolutionLang] = useState<"javascript" | "python">(problem.solution.python ? "python" : "javascript");
   const topic = topicsBySlug[problem.topic]!;
+  const requireAuth = useRequireAuth();
 
   return (
     <Tabs value={tab} onValueChange={onTab} className="flex h-full flex-col">
@@ -50,7 +52,7 @@ export function ProblemPanel({ problem, tab, onTab, hintsShown, onRevealHint, so
         <TabsContent value="description" className="p-5">
           <div className="flex items-start justify-between gap-3">
             <h1 className="text-xl font-semibold leading-snug"><span className="text-muted tabular-nums">{problem.number}.</span> {problem.title}</h1>
-            <button onClick={() => toggleBookmark(problem.id)} className={cn("rounded-md p-1.5 hover:bg-surface-2", bookmarked ? "text-primary" : "text-muted")} aria-pressed={bookmarked} aria-label={bookmarked ? "Remove bookmark" : "Bookmark problem"}>
+            <button onClick={() => { if (requireAuth("Bookmarks are saved to your account.")) toggleBookmark(problem.id); }} className={cn("rounded-md p-1.5 hover:bg-surface-2", bookmarked ? "text-primary" : "text-muted")} aria-pressed={bookmarked} aria-label={bookmarked ? "Remove bookmark" : "Bookmark problem"}>
               {bookmarked ? <BookmarkCheck className="size-5" /> : <Bookmark className="size-5" />}
             </button>
           </div>

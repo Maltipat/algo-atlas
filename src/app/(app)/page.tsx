@@ -6,6 +6,7 @@ import { useAppStore } from "@/store/app-store";
 import { useStats } from "@/hooks/use-app";
 import { greeting } from "@/lib/engine/dates";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/shared/stat-card";
 import { ActivityHeatmap } from "@/components/shared/heatmap";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,9 +14,14 @@ import { ContinueLearning, DailyChallengeCard, DailyPlanCard, ProgressOverview, 
 import { formatMinutes } from "@/lib/utils";
 
 export default function DashboardPage() {
-  const user = useAppStore((s) => s.user)!;
+  const user = useAppStore((s) => s.user);
   const activity = useAppStore((s) => s.activity);
   const stats = useStats();
+
+  // The dashboard is public, so a visitor without an account sees what the app
+  // offers instead of a wall of zeroed personal statistics.
+  if (!user) return <SignedOutDashboard />;
+
   const first = user.name.split(" ")[0];
 
   return (
@@ -72,6 +78,64 @@ export default function DashboardPage() {
         <RecentActivity />
         <RecommendedList />
       </div>
+    </div>
+  );
+}
+
+const TOUR: { href: string; title: string; description: string }[] = [
+  { href: "/roadmap", title: "Roadmap", description: "44 topics across five levels, with prerequisites and estimated time." },
+  { href: "/problems", title: "264 problems", description: "Filter by topic, difficulty, company or pattern. Statements are open to read." },
+  { href: "/patterns", title: "17 interview patterns", description: "When each applies, how to recognise it, and a template to start from." },
+  { href: "/topics", title: "Lessons", description: "Explanations, worked examples, complexity and common mistakes." },
+  { href: "/companies", title: "Company prep", description: "Topic mix, process and mock questions for eight companies." },
+  { href: "/courses", title: "Courses", description: "Guided tracks that sequence the roadmap for you." },
+];
+
+/** What a logged-out visitor sees at `/`: the offer, not an empty profile. */
+function SignedOutDashboard() {
+  return (
+    <div className="space-y-6">
+      <section>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">From your first loop to your final interview round</h1>
+        <p className="mt-1.5 max-w-2xl text-sm text-muted">
+          A five-level roadmap, 264 practice problems with an in-browser judge, spaced-repetition revision and interview preparation.
+          Browse everything below without an account. Log in when you want to run code and track progress.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Link href="/signup"><Button>Create an account</Button></Link>
+          <Link href="/login"><Button variant="outline">Log in</Button></Link>
+          <span className="text-xs text-muted">Or try the demo account from the login page.</span>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4" aria-label="What is inside">
+        <StatCard label="Practice problems" value={264} hint="with hints and solutions" icon={Target} tone="primary" />
+        <StatCard label="Topics" value={44} hint="across five levels" icon={BookOpenCheck} />
+        <StatCard label="Interview patterns" value={17} hint="with templates" icon={Zap} tone="warning" />
+        <StatCard label="Companies" value={8} hint="topic mix and process" icon={Award} tone="success" />
+      </section>
+
+      <section className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3" aria-label="Explore">
+        {TOUR.map((card) => (
+          <Link key={card.href} href={card.href} className="rounded-[var(--radius-card)] focus-visible:outline-2 focus-visible:outline-primary">
+            <Card className="h-full transition-colors hover:border-border-strong">
+              <CardHeader><div><CardTitle>{card.title}</CardTitle><CardDescription>{card.description}</CardDescription></div></CardHeader>
+            </Card>
+          </Link>
+        ))}
+      </section>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>What needs an account</CardTitle>
+            <CardDescription>
+              Running and submitting code, bookmarks, revision, recommendations, achievements and analytics all save against your progress,
+              so they are behind login. Everything above is open.
+            </CardDescription>
+          </div>
+        </CardHeader>
+      </Card>
     </div>
   );
 }

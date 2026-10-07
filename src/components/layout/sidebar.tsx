@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Lock, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { NAV } from "./nav";
 import { useAppStore } from "@/store/app-store";
+import { LOGIN_REQUIRED_MESSAGE, loginUrl, requiresSession } from "@/lib/auth/routes";
 import { categorizeRevision } from "@/lib/engine/revision";
 import { useHydrated, useToday } from "@/hooks/use-app";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -35,8 +37,23 @@ function useRevisionCount() {
 
 export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const due = useRevisionCount();
+  const signedIn = useAppStore((s) => !!s.user);
+  const hydrated = useHydrated();
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/"));
+
+  // Every item stays visible and clickable when signed out. Clicking a protected
+  // one says why and carries the destination to the login page, rather than
+  // silently bouncing. The middleware enforces the same thing server-side.
+  const guard = (href: string) => (event: React.MouseEvent) => {
+    if (hydrated && !signedIn && requiresSession(href)) {
+      event.preventDefault();
+      toast.error(LOGIN_REQUIRED_MESSAGE, { description: "Log in to open this section." });
+      router.push(loginUrl(href));
+    }
+    onNavigate?.();
+  };
   return (
     <nav aria-label="Main" className="flex flex-col gap-5 px-3 py-4">
       {NAV.map((section) => (
@@ -45,11 +62,13 @@ export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: bool
           <ul className="space-y-0.5">
             {section.items.map((item) => {
               const active = isActive(item.href);
+              const locked = hydrated && !signedIn && requiresSession(item.href);
               const link = (
                 <Link
                   href={item.href}
-                  onClick={onNavigate}
+                  onClick={guard(item.href)}
                   aria-current={active ? "page" : undefined}
+                  title={locked ? LOGIN_REQUIRED_MESSAGE : undefined}
                   className={cn(
                     "relative flex h-9 items-center gap-3 rounded-[var(--radius-control)] px-2.5 text-sm transition-colors",
                     active ? "bg-primary-soft font-medium text-primary" : "text-muted hover:bg-surface-2 hover:text-foreground",
@@ -63,6 +82,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: bool
                       ? <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-warning" />
                       : <span className="ml-auto rounded-full bg-warning-soft px-1.5 text-xs font-medium tabular-nums text-warning">{due}</span>
                   )}
+                  {locked && !collapsed && <Lock className="ml-auto size-3.5 shrink-0 opacity-60" aria-hidden />}
                 </Link>
               );
               return <li key={item.href}>{collapsed ? <Tooltip content={item.label} side="right">{link}</Tooltip> : link}</li>;
