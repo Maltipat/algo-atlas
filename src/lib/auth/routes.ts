@@ -44,7 +44,7 @@ const PUBLIC_APIS: RegExp[] = [
   /^\/api\/patterns(\/|$)/,
   /^\/api\/search(\/|$)/,
   /^\/api\/daily-challenge(\/|$)/,
-  /^\/api\/auth\/session$/,
+  /^\/api\/auth\/(session|login|signup|demo)$/,
 ];
 
 export function isPublicPage(pathname: string): boolean {

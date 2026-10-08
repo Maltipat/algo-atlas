@@ -102,7 +102,7 @@ export function LoginForm() {
         Continue with the demo account
       </Button>
       <p className="mt-2 text-center text-xs text-muted">The demo account (demo@algoatlas.app) has five months of sample progress.</p>
-      <p className="mt-4 rounded-md bg-primary-soft px-3 py-2 text-center text-xs text-muted">This is a portfolio demo. Sign-in is simulated and no account is real — everything you do is stored only in your own browser and is visible to nobody else.</p>
+      <p className="mt-4 rounded-md bg-primary-soft px-3 py-2 text-center text-xs text-muted">Your account and password live on the server; the password is hashed and never stored in plain text. Your practice progress is saved in this browser.</p>
       <p className="mt-6 text-center text-sm text-muted">New here? <Link href={signupUrl(next)} className="font-medium text-primary hover:underline">Create an account</Link></p>
     </div>
   );

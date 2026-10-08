@@ -3,44 +3,81 @@
 import { useAppStore } from "@/store/app-store";
 
 /**
- * Mock authentication. Accounts live in the persisted client store; the server
- * is told about the resulting session so protected routes and APIs can verify it
- * (src/lib/auth/session.ts). Both halves move together: if the cookie cannot be
- * issued, the client sign-in is rolled back rather than left half-done.
+ * Authentication against the server.
  *
- * To use real auth, replace signIn/signUp with Auth.js (NextAuth) `signIn("credentials", …)`
- * or your provider and load progress from /api routes backed by Prisma. The session
- * endpoint and route guards stay as they are.
+ * Credentials go to /api/auth/login or /api/auth/signup, which verify them against
+ * the stored password hash and reply with an HttpOnly session cookie. The identity in
+ * that reply is what the local progress vault is bound to — the client never decides
+ * who it is, and there is no longer any endpoint that mints a session from a
+ * caller-supplied uid or email.
  */
 type Result = { ok: true } | { ok: false; error: string; code?: "no-account" | "duplicate" };
 
 const EMAIL = /^\S+@\S+\.\S+$/;
+const OFFLINE = "Could not reach the server. Check your connection and try again.";
 
-/** Mints the HttpOnly session cookie for the user now in the store. */
-async function openServerSession(): Promise<boolean> {
-  const user = useAppStore.getState().user;
-  if (!user) return false;
+type AuthResponse = { authenticated?: boolean; user?: { id: string; email: string; name: string }; error?: string; code?: string };
+
+async function post(path: string, body: unknown): Promise<{ status: number; data: AuthResponse } | null> {
   try {
-    const res = await fetch("/api/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: user.id, email: user.email, name: user.name }),
-    });
-    return res.ok;
+    const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = (await res.json().catch(() => ({}))) as AuthResponse;
+    return { status: res.status, data };
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** Binds local progress to the verified identity and reports success. */
+function adopt(data: AuthResponse): Result {
+  if (!data.user) return { ok: false, error: OFFLINE };
+  useAppStore.getState().adoptServerUser(data.user);
+  return { ok: true };
+}
+
+export async function signIn(email: string, password: string): Promise<Result> {
+  if (!EMAIL.test(email)) return { ok: false, error: "Enter a valid email address." };
+  if (!password) return { ok: false, error: "Enter your password." };
+
+  const res = await post("/api/auth/login", { email, password });
+  if (!res) return { ok: false, error: OFFLINE };
+  if (res.status === 401) return { ok: false, error: res.data.error ?? "Email or password is incorrect." };
+  if (res.status !== 200) return { ok: false, error: res.data.error ?? "Could not log in." };
+  return adopt(res.data);
+}
+
+export async function signUp(name: string, email: string, password: string): Promise<Result> {
+  if (!name.trim()) return { ok: false, error: "Enter your name." };
+  if (!EMAIL.test(email)) return { ok: false, error: "Enter a valid email address." };
+  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+
+  const res = await post("/api/auth/signup", { name: name.trim(), email, password });
+  if (!res) return { ok: false, error: OFFLINE };
+  if (res.status === 409) return { ok: false, code: "duplicate", error: res.data.error ?? "An account with this email already exists." };
+  if (res.status !== 200) return { ok: false, error: res.data.error ?? "Could not create the account." };
+  return adopt(res.data);
+}
+
+/**
+ * The shared demo account. It authenticates one fixed, publicly advertised account
+ * on the server — it is not a way to become an arbitrary user.
+ */
+export async function signInDemo(): Promise<Result> {
+  const res = await post("/api/auth/demo", {});
+  if (!res) return { ok: false, error: OFFLINE };
+  if (res.status !== 200) return { ok: false, error: res.data.error ?? "Could not open the demo account." };
+  return adopt(res.data);
 }
 
 export async function closeServerSession(): Promise<void> {
   try {
     await fetch("/api/auth/session", { method: "DELETE" });
   } catch {
-    /* the client session is cleared regardless; the cookie expires on its own */
+    /* the local session is cleared regardless; the row is revoked on the next successful call */
   }
 }
 
-/** True when the browser currently holds a valid session cookie. */
+/** True when this browser holds a session the server still accepts. */
 export async function hasServerSession(): Promise<boolean> {
   try {
     const res = await fetch("/api/auth/session", { cache: "no-store" });
@@ -49,50 +86,6 @@ export async function hasServerSession(): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-const SESSION_FAILED = "Could not start a session. Check your connection and try again.";
-
-export async function signIn(email: string, password: string): Promise<Result> {
-  if (!EMAIL.test(email)) return { ok: false, error: "Enter a valid email address." };
-  if (password.length < 6) return { ok: false, error: "Password must be at least 6 characters." };
-  await new Promise((r) => setTimeout(r, 300));
-  const ok = useAppStore.getState().login(email);
-  // Accounts are per-browser, so a first-time visitor has nothing to log in to.
-  // Flagged so the form can offer signup with this email rather than dead-ending.
-  if (!ok) return { ok: false, code: "no-account", error: "No account with this email exists in this browser. Accounts are saved per browser, so you need to create one here first." };
-  if (!(await openServerSession())) {
-    useAppStore.getState().logout();
-    return { ok: false, error: SESSION_FAILED };
-  }
-  return { ok: true };
-}
-
-export async function signUp(name: string, email: string, password: string): Promise<Result> {
-  if (!name.trim()) return { ok: false, error: "Enter your name." };
-  if (!EMAIL.test(email)) return { ok: false, error: "Enter a valid email address." };
-  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
-  await new Promise((r) => setTimeout(r, 300));
-  // Accounts live per browser, so a repeat email would otherwise silently take over
-  // the existing one. Refuse instead and point the person at logging in.
-  if (!useAppStore.getState().signup(name.trim(), email.trim())) {
-    return { ok: false, code: "duplicate", error: "An account with this email already exists in this browser. Log in instead." };
-  }
-  if (!(await openServerSession())) {
-    useAppStore.getState().logout();
-    return { ok: false, error: SESSION_FAILED };
-  }
-  return { ok: true };
-}
-
-/** The one-click demo account, which needs a real session like any other sign-in. */
-export async function signInDemo(): Promise<Result> {
-  useAppStore.getState().loginDemo();
-  if (!(await openServerSession())) {
-    useAppStore.getState().logout();
-    return { ok: false, error: SESSION_FAILED };
-  }
-  return { ok: true };
 }
 
 export async function signOut(): Promise<void> {

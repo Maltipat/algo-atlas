@@ -6,6 +6,8 @@ import type { ExecuteRequest, ExecutionResult } from "@/lib/execution/types";
 import { LOGIN_REQUIRED_MESSAGE } from "@/lib/auth/routes";
 import { sessionFromRequest } from "@/lib/auth/session";
 
+export const runtime = "nodejs";
+
 const LANGS: Language[] = ["cpp", "java", "python", "javascript"];
 
 /**

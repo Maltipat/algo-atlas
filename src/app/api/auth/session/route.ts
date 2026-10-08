@@ -1,61 +1,34 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE, SESSION_MAX_AGE, sessionFromRequest, sessionSecretConfigured, signSession } from "@/lib/auth/session";
+import { SESSION_COOKIE, cookieOptions, revokeSession, sessionFromRequest, tokenFromRequest } from "@/lib/auth/session";
+
+export const runtime = "nodejs";
 
 /**
- * The session endpoint the existing client-side login, signup and demo flows call
- * once they succeed. It issues the HttpOnly cookie that protected routes verify.
+ * GET    — report the current session, resolved from the database.
+ * DELETE — log out: revoke the row, then clear the cookie.
  *
- * GET    — report whether this request carries a valid session.
- * POST   — mint a session cookie.
- * DELETE — clear it (log out).
+ * There is deliberately no POST. Sessions are issued only by /api/auth/signup and
+ * /api/auth/login, which establish identity from credentials. The previous POST here
+ * minted a session from whatever uid/email the caller supplied, which let anyone
+ * authenticate as anyone with a single fetch.
  */
-
-const EMAIL = /^\S+@\S+\.\S+$/;
-
-function cookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-  };
-}
-
 export async function GET(req: Request) {
   const session = await sessionFromRequest(req);
   if (!session) return NextResponse.json({ authenticated: false }, { status: 200 });
   return NextResponse.json({ authenticated: true, user: { uid: session.uid, email: session.email, name: session.name } });
 }
 
-export async function POST(req: Request) {
-  if (!sessionSecretConfigured()) {
-    return NextResponse.json({ error: "Sessions are unavailable: AUTH_SECRET is not configured on the server." }, { status: 500 });
-  }
-
-  let body: { uid?: unknown; email?: unknown; name?: unknown };
-  try {
-    body = (await req.json()) as typeof body;
-  } catch {
-    return NextResponse.json({ error: "Request body must be JSON." }, { status: 400 });
-  }
-
-  const uid = typeof body.uid === "string" ? body.uid.slice(0, 64) : "";
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase().slice(0, 254) : "";
-  const name = typeof body.name === "string" ? body.name.trim().slice(0, 80) : "";
-  if (!uid || !EMAIL.test(email) || !name) {
-    return NextResponse.json({ error: "uid, a valid email and name are required." }, { status: 400 });
-  }
-
-  const token = await signSession({ uid, email, name });
-  if (!token) return NextResponse.json({ error: "Could not issue a session." }, { status: 500 });
-
-  const res = NextResponse.json({ authenticated: true, user: { uid, email, name } });
-  res.cookies.set(SESSION_COOKIE, token, { ...cookieOptions(), maxAge: SESSION_MAX_AGE });
-  return res;
-}
-
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  // Revoke first: if clearing the cookie somehow fails, the token is already dead.
+  await revokeSession(tokenFromRequest(req));
   const res = NextResponse.json({ authenticated: false });
   res.cookies.set(SESSION_COOKIE, "", { ...cookieOptions(), maxAge: 0 });
   return res;
+}
+
+export async function POST() {
+  return NextResponse.json(
+    { error: "Sessions are issued by /api/auth/login and /api/auth/signup only." },
+    { status: 405, headers: { Allow: "GET, DELETE" } },
+  );
 }

@@ -1,117 +1,101 @@
+import { createHash, randomBytes } from "node:crypto";
+import { getPrisma } from "@/lib/db";
+
 /**
- * Server-visible sessions.
+ * Database-backed sessions.
  *
- * The app's accounts live in the browser (see src/services/auth-service.ts), which
- * gives the server nothing to check. This module adds the missing half: when the
- * existing login, signup or demo entry point succeeds, the client asks the server
- * to mint a session, and the server returns an HttpOnly cookie holding a payload
- * signed with HMAC-SHA256. Protected routes verify that signature before doing any
- * work, so a request without a valid cookie is rejected whatever the client does.
+ * The cookie carries an opaque 32-byte random token and nothing else — no identity,
+ * no claims. Identity comes from the Session row the token's hash resolves to, so a
+ * client cannot assert who it is. Only the SHA-256 of the token is stored, so reading
+ * the table does not yield usable cookies.
  *
- * Web Crypto only, so this runs unchanged in middleware (Edge) and route handlers.
+ * Because validity is a row rather than a signature, logging out can withdraw it:
+ * revokedAt is set and every later request with that cookie fails. A stateless signed
+ * token cannot be taken back before it expires, which is what made stolen cookies
+ * replayable.
+ *
+ * Node runtime only (node:crypto + Prisma).
  */
 
 export const SESSION_COOKIE = "algoatlas_session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
-export type Session = {
-  /** User id from the client store, for correlating with client-side progress. */
-  uid: string;
-  email: string;
-  name: string;
-  /** Issued at / expires at, both seconds since epoch. */
-  iat: number;
-  exp: number;
-};
+export type Session = { uid: string; email: string; name: string; sessionId: string };
 
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-
-/**
- * Fails closed: with no usable AUTH_SECRET nothing can be signed and nothing
- * verifies, so every protected route rejects rather than silently trusting input.
- * Development falls back to a fixed secret so `npm run dev` works out of the box.
- */
-function secret(): string | null {
-  const configured = process.env.AUTH_SECRET;
-  if (configured && configured.length >= 32) return configured;
-  if (process.env.NODE_ENV === "production") return null;
-  return "dev-only-insecure-secret-do-not-use-in-production";
+export function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
 
-export function sessionSecretConfigured(): boolean {
-  return secret() !== null;
+export function cookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+  };
 }
 
-function toBase64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+/** Creates a row and returns the raw token, which is only ever seen by this browser. */
+export async function createSession(userId: string, userAgent?: string | null): Promise<string | null> {
+  const prisma = getPrisma();
+  if (!prisma) return null;
+  const token = randomBytes(32).toString("base64url");
+  await prisma.session.create({
+    data: {
+      tokenHash: hashToken(token),
+      userId,
+      expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1000),
+      userAgent: userAgent?.slice(0, 255) ?? null,
+    },
+  });
+  return token;
 }
 
-function fromBase64Url(value: string): Uint8Array | null {
-  try {
-    const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
-    const binary = atob(padded);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-  } catch {
-    return null;
-  }
-}
-
-async function hmacKey(): Promise<CryptoKey | null> {
-  const value = secret();
-  if (!value) return null;
-  return crypto.subtle.importKey("raw", encoder.encode(value), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
-}
-
-/** Returns `<payload>.<signature>`, or null when no secret is configured. */
-export async function signSession(input: Pick<Session, "uid" | "email" | "name">): Promise<string | null> {
-  const key = await hmacKey();
-  if (!key) return null;
-  const now = Math.floor(Date.now() / 1000);
-  const session: Session = { ...input, iat: now, exp: now + SESSION_MAX_AGE };
-  const payload = toBase64Url(encoder.encode(JSON.stringify(session)));
-  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(payload)));
-  return `${payload}.${toBase64Url(signature)}`;
-}
-
-/** Verifies the signature and expiry. Any tampering or truncation yields null. */
-export async function verifySession(token: string | undefined | null): Promise<Session | null> {
+/** Resolves a token to its user, or null when missing, unknown, expired or revoked. */
+export async function resolveSession(token: string | undefined | null): Promise<Session | null> {
   if (!token) return null;
-  const key = await hmacKey();
-  if (!key) return null;
-
-  const separator = token.lastIndexOf(".");
-  if (separator <= 0) return null;
-  const payload = token.slice(0, separator);
-  const signature = fromBase64Url(token.slice(separator + 1));
-  if (!signature) return null;
-
-  const valid = await crypto.subtle.verify("HMAC", key, signature as BufferSource, encoder.encode(payload));
-  if (!valid) return null;
-
-  const decoded = fromBase64Url(payload);
-  if (!decoded) return null;
-  try {
-    const session = JSON.parse(decoder.decode(decoded)) as Session;
-    if (typeof session?.uid !== "string" || typeof session?.email !== "string" || typeof session?.exp !== "number") return null;
-    if (session.exp <= Math.floor(Date.now() / 1000)) return null;
-    return session;
-  } catch {
-    return null;
-  }
+  const prisma = getPrisma();
+  if (!prisma) return null;
+  const row = await prisma.session
+    .findUnique({ where: { tokenHash: hashToken(token) }, include: { user: true } })
+    .catch(() => null);
+  if (!row) return null;
+  if (row.revokedAt) return null;
+  if (row.expiresAt.getTime() <= Date.now()) return null;
+  return { uid: row.userId, email: row.user.email, name: row.user.name, sessionId: row.id };
 }
 
-/** Reads the session cookie straight off a request, for handlers without `cookies()`. */
-export async function sessionFromRequest(req: Request): Promise<Session | null> {
-  const header = req.headers.get("cookie");
-  if (!header) return null;
+/** Logout. Idempotent, and a token that is already gone is treated as success. */
+export async function revokeSession(token: string | undefined | null): Promise<void> {
+  if (!token) return;
+  const prisma = getPrisma();
+  if (!prisma) return;
+  await prisma.session
+    .updateMany({ where: { tokenHash: hashToken(token), revokedAt: null }, data: { revokedAt: new Date() } })
+    .catch(() => undefined);
+}
+
+/** Signs every other session for this user out, used when the password changes. */
+export async function revokeAllSessions(userId: string): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+  await prisma.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }).catch(() => undefined);
+}
+
+function readCookieHeader(header: string | null, name: string): string | undefined {
+  if (!header) return undefined;
   for (const part of header.split(";")) {
-    const [name, ...rest] = part.trim().split("=");
-    if (name === SESSION_COOKIE) return verifySession(rest.join("="));
+    const [key, ...rest] = part.trim().split("=");
+    if (key === name) return rest.join("=");
   }
-  return null;
+  return undefined;
+}
+
+export function tokenFromRequest(req: Request): string | undefined {
+  return readCookieHeader(req.headers.get("cookie"), SESSION_COOKIE);
+}
+
+/** The one call every protected route handler makes before doing any work. */
+export async function sessionFromRequest(req: Request): Promise<Session | null> {
+  return resolveSession(tokenFromRequest(req));
 }

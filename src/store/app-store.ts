@@ -30,6 +30,12 @@ interface Actions {
   login: (email: string) => boolean;
   /** False when an account with this email already exists in this browser. */
   signup: (name: string, email: string) => boolean;
+  /**
+   * Binds the local progress vault to the identity the server just verified.
+   * The server's user id is authoritative, so local data is selected by it rather
+   * than by anything the client believes about who is signed in.
+   */
+  adoptServerUser: (serverUser: { id: string; email: string; name: string }) => void;
   logout: () => void;
   resetProgress: () => void;
   updateProfile: (patch: Partial<Pick<UserProfile, "name" | "bio" | "username" | "email">>) => void;
@@ -172,6 +178,36 @@ export const useAppStore = create<AppState>()(
         // The new account is added alongside the others, never on top of them.
         set({ ...fresh, accounts: { ...accounts, [id]: fresh } });
         return true;
+      },
+      adoptServerUser: ({ id, email, name }) => {
+        const s = get();
+        if (s.user?.id === id) return;
+        const accounts = snapshot(s);
+        const existing = accounts[id];
+        if (existing) {
+          set({ ...existing, accounts, user: { ...existing.user!, email, name } });
+          return;
+        }
+        // The demo account keeps its generated history; everyone else starts clean.
+        // Matched on email because the server assigns the id, not this client.
+        const isDemo = email.trim().toLowerCase() === "demo@algoatlas.app";
+        const base = isDemo ? createDemoProgress() : emptyProgress();
+        const data: ProgressData = {
+          ...base,
+          user: {
+            id,
+            name,
+            email,
+            username: email.split("@")[0]!.replace(/[^a-z0-9_]/gi, "_").toLowerCase(),
+            bio: base.user?.bio ?? "",
+            joinedAt: base.user?.joinedAt ?? new Date().toISOString(),
+            avatarHue: base.user?.avatarHue ?? Math.floor(Math.random() * 360),
+          },
+          notifications: base.notifications.length
+            ? base.notifications
+            : [{ id: uid("n"), title: "Welcome to AlgoAtlas", body: "Start with Programming Basics on the roadmap, or take the 30-Day plan.", createdAt: new Date().toISOString(), read: false, href: "/roadmap" }],
+        };
+        set({ ...data, accounts: { ...accounts, [id]: data } });
       },
       logout: () => {
         // Save the session's work into the vault, then clear the live fields so a

@@ -8,7 +8,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="flex flex-1 items-center justify-center py-10">
           <div className="w-full max-w-sm">{children}</div>
         </div>
-        <p className="text-xs text-muted">Demo mode: accounts and progress are stored in this browser.</p>
+        <p className="text-xs text-muted">Accounts are stored on the server. Practice progress is saved in this browser.</p>
       </div>
       <aside className="relative hidden overflow-hidden border-l border-border bg-surface lg:block" aria-hidden>
         <div className="absolute inset-0 flex flex-col justify-center gap-10 px-16">

@@ -102,6 +102,28 @@ model User {
   learningPaths    UserLearningPath[]
   dailyActivity    DailyActivity[]
   dailyChallenges  UserDailyChallenge[]
+  sessions         Session[]
+}
+
+/**
+ * One row per sign-in. The cookie carries an opaque random token; only its SHA-256
+ * hash is stored, so a database leak does not hand over usable sessions. Logging out
+ * sets revokedAt, which is what makes a stolen cookie stop working immediately —
+ * a stateless signed token cannot be withdrawn before it expires.
+ */
+model Session {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  userAgent  String?
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ---------------------------------------------------------------- curriculum
